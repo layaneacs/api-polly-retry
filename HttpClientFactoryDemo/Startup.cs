@@ -8,6 +8,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Polly;
+using Polly.Extensions.Http;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,7 +32,13 @@ namespace HttpClientFactoryDemo
             services.Configure<ApiConfig>(Configuration.GetSection("ConnectionStrings"));
             services.AddSingleton<IApiConfig, ApiConfig>();
 
-            services.AddHttpClient<IPostService, PostService>(x => x.BaseAddress = new Uri(Configuration.GetConnectionString("BaseUrl")));
+
+            //--RETRY POLLY - Resiliencia e Tratativa
+            var retryPolicy = HttpPolicyExtensions.HandleTransientHttpError()
+                .WaitAndRetryAsync(3, retryTemp => TimeSpan.FromSeconds(retryTemp)); //--tente 3x, com timeout de 3 segundos
+
+            services.AddHttpClient<IPostService, PostService>(x => x.BaseAddress = new Uri(Configuration.GetConnectionString("BaseUrl")))
+                .AddPolicyHandler(retryPolicy);
 
             services.AddControllers();
         }
